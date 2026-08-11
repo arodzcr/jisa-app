@@ -13,7 +13,7 @@ dependencies:
   webview_flutter_android: ^4.3.0
   path_provider: ^2.1.4
   share_plus: ^10.1.2
-  file_picker: ^8.1.4
+  file_picker: ^10.3.10
   http: ^1.2.2
 
 dev_dependencies:
