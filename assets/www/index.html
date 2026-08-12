@@ -85,6 +85,19 @@ textarea{font-size:12px;font-weight:400;min-height:130px;font-family:ui-monospac
   letter-spacing:.5px;margin-top:6px}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
 
+.search-divider{display:flex;align-items:center;gap:12px;margin:22px 0;color:var(--greytext);
+  font-size:10px;font-weight:800;letter-spacing:.8px}
+.search-divider::before,.search-divider::after{content:'';height:1px;background:var(--grey);flex:1}
+.location-wizard{background:var(--card);border:1px solid var(--grey);border-radius:14px;
+  padding:16px;margin-bottom:18px}
+.wizard-step{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+.wizard-step:last-child{margin-bottom:0}
+.wizard-index{display:flex;align-items:center;justify-content:center;flex:0 0 28px;width:28px;height:28px;
+  margin-top:24px;border-radius:50%;background:var(--orange);color:#000;font-size:13px;font-weight:800}
+.wizard-step .field{flex:1;margin-bottom:0}
+.wizard-step select:disabled+.wizard-help{opacity:.45}
+.wizard-help{display:block;color:var(--greytext);font-size:10.5px;margin-top:5px;line-height:1.35}
+
 .menuitem{display:flex;align-items:center;gap:16px;width:100%;text-align:left;
   background:var(--card);border:1px solid var(--grey);border-radius:14px;
   padding:18px 16px;color:var(--white);font-family:inherit;cursor:pointer;margin-bottom:12px}
@@ -214,9 +227,34 @@ hr{border:0;border-top:1px solid var(--grey);margin:18px 0}
 <div id="s-search" class="screen"><div class="wrap">
   <div class="topbar"><button class="back" onclick="go('s-home')">‹</button>
     <h2>¿DÓNDE SE ENTREGA?</h2></div>
+  <p class="label">Buscar por nombre</p>
   <div class="field">
-    <input id="in-search" placeholder="Escriba el distrito. Ej: san joa" oninput="renderSearch()">
+    <input id="in-search" placeholder="Escriba el distrito. Ej: san joa" oninput="onSearchTextChange()">
   </div>
+
+  <div class="search-divider"><span>O SELECCIONE PASO A PASO</span></div>
+
+  <div class="location-wizard">
+    <div class="wizard-step">
+      <span class="wizard-index">1</span>
+      <div class="field"><label>Provincia</label>
+        <select id="w-provincia" onchange="onSearchProvinceChange()"></select>
+        <span class="wizard-help">Seleccione la provincia de entrega.</span></div>
+    </div>
+    <div class="wizard-step">
+      <span class="wizard-index">2</span>
+      <div class="field"><label>Cantón</label>
+        <select id="w-canton" onchange="onSearchCantonChange()" disabled></select>
+        <span class="wizard-help">Se mostrarán únicamente los cantones disponibles.</span></div>
+    </div>
+    <div class="wizard-step">
+      <span class="wizard-index">3</span>
+      <div class="field"><label>Distrito</label>
+        <select id="w-distrito" onchange="onSearchDistrictChange()" disabled></select>
+        <span class="wizard-help">Al elegirlo quedará seleccionado automáticamente.</span></div>
+    </div>
+  </div>
+
   <div class="list" id="search-list"></div>
 </div></div>
 
@@ -5545,7 +5583,7 @@ function go(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   window.scrollTo(0,0);
-  if(id==='s-search'){ renderSearch(); setTimeout(()=>document.getElementById('in-search').focus(),80); }
+  if(id==='s-search'){ resetSearchWizard(); renderSearch(); }
   if(id==='s-menu'){ document.getElementById('menu-d-count').textContent=districts.length+' distritos cargados'; }
 }
 let toastTimer=null;
@@ -5665,9 +5703,76 @@ function statusOf(d){
   const ok = (d.use_fixed_tariff&&d.fixed_base_tariff!=null) || (d.distance_one_way_km!=null&&d.normal_one_way_minutes!=null);
   return ok?['DISPONIBLE','var(--success)']:['FALTA KM Y TIEMPO','var(--greytext)'];
 }
+
+function sortedUnique(values){
+  return Array.from(new Set(values.filter(Boolean))).sort(function(a,b){return a.localeCompare(b,'es');});
+}
+function resetSearchWizard(){
+  const prov=document.getElementById('w-provincia');
+  const cant=document.getElementById('w-canton');
+  const dist=document.getElementById('w-distrito');
+  document.getElementById('in-search').value='';
+  fillSelect(prov,sortedUnique(districts.map(function(d){return d.provincia;})),'Seleccione provincia');
+  cant.disabled=true; cant.innerHTML='<option value="">Primero seleccione provincia</option>';
+  dist.disabled=true; dist.innerHTML='<option value="">Primero seleccione cantón</option>';
+}
+function clearSearchWizardSelection(){
+  const prov=document.getElementById('w-provincia');
+  if(!prov.value) return;
+  prov.value='';
+  const cant=document.getElementById('w-canton');
+  const dist=document.getElementById('w-distrito');
+  cant.disabled=true; cant.innerHTML='<option value="">Primero seleccione provincia</option>';
+  dist.disabled=true; dist.innerHTML='<option value="">Primero seleccione cantón</option>';
+}
+function onSearchTextChange(){
+  if(document.getElementById('in-search').value.trim()) clearSearchWizardSelection();
+  renderSearch();
+}
+function onSearchProvinceChange(){
+  const prov=document.getElementById('w-provincia').value;
+  const cant=document.getElementById('w-canton');
+  const dist=document.getElementById('w-distrito');
+  document.getElementById('in-search').value='';
+  dist.disabled=true; dist.innerHTML='<option value="">Primero seleccione cantón</option>';
+  if(!prov){
+    cant.disabled=true; cant.innerHTML='<option value="">Primero seleccione provincia</option>';
+  } else {
+    const cantones=sortedUnique(districts.filter(function(d){return d.provincia===prov;})
+      .map(function(d){return d.canton;}));
+    cant.disabled=false; fillSelect(cant,cantones,'Seleccione cantón');
+  }
+  renderSearch();
+}
+function onSearchCantonChange(){
+  const prov=document.getElementById('w-provincia').value;
+  const cant=document.getElementById('w-canton').value;
+  const dist=document.getElementById('w-distrito');
+  document.getElementById('in-search').value='';
+  if(!cant){
+    dist.disabled=true; dist.innerHTML='<option value="">Primero seleccione cantón</option>';
+  } else {
+    const opciones=districts.filter(function(d){return d.provincia===prov&&d.canton===cant;})
+      .sort(function(a,b){return a.distrito.localeCompare(b.distrito,'es');});
+    dist.disabled=false;
+    dist.innerHTML='<option value="">Seleccione distrito</option>'+opciones.map(function(d){
+      return '<option value="'+esc(d.id)+'">'+esc(d.distrito)+'</option>';
+    }).join('');
+  }
+  renderSearch();
+}
+function onSearchDistrictChange(){
+  const id=document.getElementById('w-distrito').value;
+  if(id) pickDistrict(id); else renderSearch();
+}
 function renderSearch(){
   const q=document.getElementById('in-search').value;
-  const list=searchDistricts(q);
+  const prov=document.getElementById('w-provincia').value;
+  const cant=document.getElementById('w-canton').value;
+  const districtId=document.getElementById('w-distrito').value;
+  const list=searchDistricts(q).filter(function(d){
+    return (!prov||d.provincia===prov) && (!cant||d.canton===cant) && (!districtId||d.id===districtId);
+  });
   const el=document.getElementById('search-list');
   if(!list.length){ el.innerHTML='<p style="text-align:center;color:var(--greytext);padding:40px 10px">Sin resultados.<br>CONSULTAR ADMIN JISA.</p>'; return; }
   el.innerHTML=list.slice(0,200).map(d=>{
@@ -6404,6 +6509,7 @@ try{
 
 load();
 calCursor=startOfMonth(new Date());
+resetSearchWizard();
 renderSearch();
 renderSlots();
 renderCalendar();
